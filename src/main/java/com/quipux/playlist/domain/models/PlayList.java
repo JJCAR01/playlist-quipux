@@ -15,4 +15,8 @@ public class PlayList {
         this.description = description;
         this.songs = songs;
     }
+
+    public PlayList() {
+
+    }
 }

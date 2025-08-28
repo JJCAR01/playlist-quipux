@@ -10,7 +10,9 @@ import com.quipux.playlist.infraestructure.in.mapper.PlayListMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,31 +34,35 @@ public class PlayListController {
     }
 
     @PostMapping
-    public ResponseEntity<PlayListDto> crearPlaylist(@RequestBody PlayListDto playlistDto) {
-        // Convertir de DTO a Dominio
+    public ResponseEntity<PlayListDto> createPlaylist(@RequestBody PlayListDto playlistDto) {
         PlayList playlist = PlayListMapper.toDomain(playlistDto);
+        PlayList created = createPlayListService.execute(playlist);
+        PlayListDto response = PlayListMapper.toDto(created);
 
-        // Llamar a servicio con dominio
-        PlayList playlistCreada = createPlayListService.execute(playlist);
+        URI location = ServletUriComponentsBuilder
+                .fromCurrentRequest()
+                .path("/{name}")
+                .buildAndExpand(response.getName())
+                .toUri();
 
-        // Convertir de Dominio a DTO para responder
-        PlayListDto respuesta = PlayListMapper.toDto(playlistCreada);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                // buena práctica: devolver la URI del recurso creado
-                .header("Location", "/lists/" + respuesta.getName())
-                .body(respuesta);
+        return ResponseEntity.created(location).body(response);
     }
 
     @GetMapping
-    public List<PlayListDto> all(){
-        return getPlayListService.execute().stream().map(PlayListMapper::toDto).
-                collect(Collectors.toList());
+    public ResponseEntity<List<PlayListDto>> getAllPlaylist() {
+        List<PlayListDto> playlists = getPlayListService.execute().stream()
+                .map(PlayListMapper::toDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(playlists);
     }
 
+
     @GetMapping("/{listName}")
-    public ResponseEntity<PlayListDto> playListByName(@PathVariable String listName){
+    public ResponseEntity<PlayListDto> getPlaylistByName(@PathVariable String listName){
+        if (listName == null || listName.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
         return getPlayListByNameService.execute(listName)
                 .map(entity -> ResponseEntity.ok(PlayListMapper.toDto(entity)))
                 .orElse(ResponseEntity.notFound().build());
