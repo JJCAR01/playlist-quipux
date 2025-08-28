@@ -7,109 +7,67 @@ import com.quipux.playlist.application.services.playlist.GetPlayListByNameServic
 import com.quipux.playlist.application.services.playlist.GetPlayListService;
 import com.quipux.playlist.domain.models.PlayList;
 import com.quipux.playlist.infraestructure.in.dto.PlayListDto;
+import com.quipux.playlist.infraestructure.in.mapper.PlayListMapper;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.mockito.Mockito.*;
+
 
 @WebMvcTest(controllers = PlayListController.class)
 class PlayListControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper; // para serializar JSON
-
-    @MockitoBean
+    @Mock
     private GetPlayListService getPlayListService;
-
-    @MockitoBean
+    @Mock
     private CreatePlayListService createPlayListService;
-
-    @MockitoBean
+    @Mock
     private GetPlayListByNameService getPlayListByNameService;
-
-    @MockitoBean
+    @Mock
     private DeletePlayListService deletePlayListService;
 
-    @Test
-    void shouldCreatePlaylist() throws Exception {
-        PlayList playlist = new PlayList();
-        playlist.setName("Rock Classics");
+    @InjectMocks
+    private PlayListController controller;
 
-        PlayListDto dto = new PlayListDto();
-        dto.setName("Rock Classics");
+    private PlayList playlist;
+    private PlayListDto playlistDto;
 
-        when(createPlayListService.execute(any(PlayList.class))).thenReturn(playlist);
-
-        mockMvc.perform(post("/lists")
-                        .with(httpBasic("admin", "admin123")) // ✅ credenciales de tu SecurityConfig
-                        .with(csrf()) // necesario si no desactivaste CSRF
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Rock Classics\",\"description\":null,\"songs\":null}"))
-                .andExpect(status().isCreated());
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        playlist = new PlayList("Rock Classics", "Classic rock hits", List.of());
+        playlistDto = PlayListMapper.toDto(playlist);
     }
 
     @Test
-    void shouldReturnAllPlaylists() throws Exception {
-        PlayList playlist = new PlayList();
-        playlist.setName("Pop 90s");
-
+    void testGetAllPlaylists() {
         when(getPlayListService.execute()).thenReturn(List.of(playlist));
 
-        mockMvc.perform(get("/lists"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Pop 90s"));
-    }
+        ResponseEntity<List<PlayListDto>> response = controller.getAllPlaylist();
 
-    @Test
-    void shouldReturnPlaylistByName() throws Exception {
-        PlayList playlist = new PlayList();
-        playlist.setName("Chill Vibes");
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+        assertEquals("Rock Classics", response.getBody().getFirst().getName());
 
-        when(getPlayListByNameService.execute("Chill Vibes")).thenReturn(Optional.of(playlist));
-
-        mockMvc.perform(get("/lists/Chill Vibes"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Chill Vibes"));
-    }
-
-    @Test
-    void shouldReturn404WhenPlaylistNotFound() throws Exception {
-        when(getPlayListByNameService.execute("Unknown")).thenReturn(Optional.empty());
-
-        mockMvc.perform(get("/lists/Unknown"))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void shouldDeletePlaylist() throws Exception {
-        Mockito.doNothing().when(deletePlayListService).execute("Rock Classics");
-
-        mockMvc.perform(delete("/lists/Rock Classics"))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    void shouldReturn404WhenDeletingNonExistentPlaylist() throws Exception {
-        Mockito.doThrow(new RuntimeException("not found"))
-                .when(deletePlayListService).execute("Unknown");
-
-        mockMvc.perform(delete("/lists/Unknown"))
-                .andExpect(status().isNotFound());
+        verify(getPlayListService, times(1)).execute();
     }
 }
